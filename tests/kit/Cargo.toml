@@ -1,0 +1,9 @@
+[package]
+name = "sugary-test-kit"
+description = "A second crate offering sugary functions, for testing use across a crate boundary"
+publish = false
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+sugary = { path = "../.." }
