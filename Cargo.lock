@@ -3,21 +3,6 @@
 version = 4
 
 [[package]]
-name = "app"
-version = "0.0.0"
-dependencies = [
- "kit",
- "proto",
-]
-
-[[package]]
-name = "kit"
-version = "0.0.0"
-dependencies = [
- "proto",
-]
-
-[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -27,15 +12,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "proto"
-version = "0.0.0"
+name = "quote"
+version = "1.0.47"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
- "proto_macros",
+ "proc-macro2",
 ]
 
 [[package]]
-name = "proto_macros"
-version = "0.0.0"
+name = "sugary"
+version = "0.1.0"
+dependencies = [
+ "sugary-macros",
+ "sugary-test-kit",
+]
+
+[[package]]
+name = "sugary-macros"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -43,12 +38,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "quote"
-version = "1.0.47"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+name = "sugary-test-kit"
+version = "0.1.0"
 dependencies = [
- "proc-macro2",
+ "sugary",
 ]
 
 [[package]]

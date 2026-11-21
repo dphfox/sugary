@@ -1,7 +1,0 @@
-[package]
-name = "proto"
-version = "0.0.0"
-edition = "2024"
-
-[dependencies]
-proto_macros = { path = "../macros" }
