@@ -94,6 +94,21 @@ pub mod __private {
 		fn select(&self) -> T;
 	}
 
+	/// Implemented by nothing. It exists so that a caller which inherits
+	/// nothing gets an error that names the type it was asked for.
+	#[diagnostic::on_unimplemented(
+		message = "the calling function has no inherited `{Self}` to pass on",
+		label = "this call needs an inherited `{Self}`",
+		note = "add an `#[inherit]` parameter of type `{Self}` to the function this call is inside"
+	)]
+	pub trait Inherited {}
+
+	impl<T: Inherited> Select<T, I0> for () {
+		fn select(&self) -> T {
+			unreachable!()
+		}
+	}
+
 	macro_rules! select {
 		($index:ident $field:tt $pick:ident [$($all:ident),*]) => {
 			impl<$($all: Copy),*> Select<$pick, $index> for ($($all,)*) {
@@ -194,6 +209,15 @@ pub mod __private {
 /// struct Clock;
 /// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
 /// #[sugary] fn caller(#[inherit] theme: &Theme) -> u32 { let _ = theme; call!(timed) }
+/// ```
+///
+/// An inherited argument, when the caller inherits nothing at all:
+///
+/// ```compile_fail
+/// # use sugary::{call, sugary};
+/// struct Clock;
+/// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
+/// #[sugary] fn caller() -> u32 { call!(timed) }
 /// ```
 ///
 /// The short form under a renamed import:
