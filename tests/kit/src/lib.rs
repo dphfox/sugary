@@ -28,12 +28,3 @@ pub mod badges {
 		vec![call!(chip, count: 1), call!(chip, count: 2)]
 	}
 }
-
-pub mod layout {
-	use sugary::sugary;
-
-	#[sugary]
-	pub fn spacer(#[default(1)] width: u32, #[default] fill: char) -> String {
-		format!("{width}:{}", fill as u32)
-	}
-}

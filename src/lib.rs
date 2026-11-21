@@ -39,13 +39,10 @@
 //!
 //! # Rules
 //!
-//! - `call!` works anywhere. Inside a `#[sugary]` function it passes on that
-//!   function's inherited arguments. Anywhere else it has nothing to pass
-//!   on, so named and default arguments work, and the function called must
-//!   not need an inherited one.
-//! - A caller must itself inherit everything its callees inherit. At the top
-//!   of a call chain, where the inherited values are created, call the
+//! - `call!` only works inside a `#[sugary]` function, because that is where
+//!   inherited arguments come from. At the top of a call chain, call the
 //!   function plainly.
+//! - A caller must itself inherit everything its callees inherit.
 //! - Inherited parameters must have distinct types within one function, and
 //!   must be `Copy`, which shared references are.
 //! - `call!(function, ...)` accepts the function however it is in scope:
@@ -62,40 +59,16 @@
 //! for the inherited parameters, sorts the named arguments into the order of
 //! the signature, fills in defaults, and expands to a plain call. Nothing is
 //! stored anywhere at run time.
-//!
-//! `call!` finds the caller's local macro through the path
-//! `sugary::__caller::inherited`. `#[sugary]` also adds a local module named
-//! `sugary` to the function body, which re-exports this crate and puts the
-//! local macro at that path. Outside a sugary function the same path leads
-//! to this crate, where the macro passes on nothing. This is why the crate
-//! must be in scope under the name `sugary` wherever `call!` is used.
 
 pub use sugary_macros::sugary;
 
-/// Calls a `#[sugary]` function with named arguments. Inside another
-/// `#[sugary]` function, that function's inherited arguments are passed on.
-/// See the [crate documentation](crate).
+/// Calls a `#[sugary]` function with named arguments, from inside another
+/// `#[sugary]` function. See the [crate documentation](crate).
 #[macro_export]
 macro_rules! call {
-	// `sugary` is deliberately not `$crate`: inside a `#[sugary]` function it
-	// names a module local to that function, and anywhere else this crate.
 	($($function:ident)::+ $(, $($arguments:tt)*)?) => {
-		sugary::__caller::inherited! { [$($function)::+] $($($arguments)*)? }
+		__only_inside_a_sugary_function! { [$($function)::+] $($($arguments)*)? }
 	};
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __sugary_nothing_inherited {
-	([$($callee:tt)*] $($arguments:tt)*) => {
-		$($callee)* ! { @inherit [$($callee)*] () $($arguments)* }
-	};
-}
-
-/// What a call finds when it is not inside a `#[sugary]` function.
-#[doc(hidden)]
-pub mod __caller {
-	pub use crate::__sugary_nothing_inherited as inherited;
 }
 
 #[doc(hidden)]
@@ -126,8 +99,7 @@ pub mod __private {
 	#[diagnostic::on_unimplemented(
 		message = "the calling function has no inherited `{Self}` to pass on",
 		label = "this call needs an inherited `{Self}`",
-		note = "the function this call is inside must be `#[sugary]` and have an `#[inherit]` parameter of type `{Self}`",
-		note = "alternatively, call the function plainly and pass every argument"
+		note = "add an `#[inherit]` parameter of type `{Self}` to the function this call is inside"
 	)]
 	pub trait Inherited {}
 
@@ -221,31 +193,12 @@ pub mod __private {
 /// #[sugary] fn caller() -> u32 { call!(label, size: 2, size: 3) }
 /// ```
 ///
-/// A call from outside a sugary function is not a mistake:
-///
-/// ```
-/// # use sugary::{call, sugary};
-/// #[sugary] fn label(size: u32, #[default(1)] weight: u32) -> u32 { size * weight }
-/// fn caller() -> u32 { call!(label, size: 2) + label!(weight: 3, size: 2) }
-/// assert_eq!(caller(), 8);
-/// ```
-///
-/// Unless the function called needs an inherited argument:
+/// A call from outside a sugary function:
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// struct Theme;
-/// #[sugary] fn label(#[inherit] theme: &Theme, size: u32) -> u32 { let _ = theme; size }
+/// #[sugary] fn label(size: u32) -> u32 { size }
 /// fn caller() -> u32 { call!(label, size: 2) }
-/// ```
-///
-/// The same goes for a sugary function that inherits nothing:
-///
-/// ```compile_fail
-/// # use sugary::{call, sugary};
-/// struct Theme;
-/// #[sugary] fn label(#[inherit] theme: &Theme, size: u32) -> u32 { let _ = theme; size }
-/// #[sugary] fn caller() -> u32 { call!(label, size: 2) }
 /// ```
 ///
 /// An inherited argument the caller does not have:
@@ -256,6 +209,15 @@ pub mod __private {
 /// struct Clock;
 /// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
 /// #[sugary] fn caller(#[inherit] theme: &Theme) -> u32 { let _ = theme; call!(timed) }
+/// ```
+///
+/// An inherited argument, when the caller inherits nothing at all:
+///
+/// ```compile_fail
+/// # use sugary::{call, sugary};
+/// struct Clock;
+/// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
+/// #[sugary] fn caller() -> u32 { call!(timed) }
 /// ```
 ///
 /// The short form under a renamed import:
