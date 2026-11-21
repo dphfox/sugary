@@ -23,7 +23,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-sugary-macros = { version = "0.1.0", path = "macros" }
+sugary-macros = { version = "=0.1.0", path = "macros" }
 
 [dev-dependencies]
 sugary-test-kit = { path = "tests/kit" }
