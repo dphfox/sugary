@@ -52,22 +52,34 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	// A macro defined inside a function can see that function's parameters.
 	// This one names the inherited ones, so that a `call!` written in the
-	// body can pass them on. It produces no code of its own.
+	// body can pass them on. `call!` reaches it as `sugary::__caller::inherited`,
+	// through a local module that stands in front of the crate of that name.
 	let inherited: Vec<_> = parameters
 		.iter()
 		.filter(|(_, _, kind)| matches!(kind, Kind::Inherited))
 		.map(|(ident, _, _)| ident)
 		.collect();
-	function.block.stmts.insert(
-		0,
-		parse_quote! {
-			#[allow(unused_macros)]
-			macro_rules! __only_inside_a_sugary_function {
-				([$($callee:tt)*] $($arguments:tt)*) => {
-					$($callee)* ! { @inherit [$($callee)*] (#(#inherited,)*) $($arguments)* }
-				};
-			}
-		},
+	function.block.stmts.splice(
+		0..0,
+		[
+			parse_quote! {
+				#[allow(unused_macros)]
+				macro_rules! __sugary_inherited {
+					([$($callee:tt)*] $($arguments:tt)*) => {
+						$($callee)* ! { @inherit [$($callee)*] (#(#inherited,)*) $($arguments)* }
+					};
+				}
+			},
+			parse_quote! {
+				#[allow(unused_imports)]
+				mod sugary {
+					pub use ::sugary::*;
+					pub mod __caller {
+						pub(crate) use __sugary_inherited as inherited;
+					}
+				}
+			},
+		],
 	);
 
 	let named: Vec<_> = parameters
