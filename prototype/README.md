@@ -8,6 +8,21 @@ with no hidden state? The answer is yes.
 Names here (`buildable`, `build!`, `#[service]`, `proto`) are leftovers from
 the project the idea came from and are not the intended names.
 
+## Names decided for the real thing
+
+| Prototype | Intended |
+|---|---|
+| `#[buildable]` on a function | `#[sugary]` |
+| `build!(function, name: value)` | `call!(function, name: value)` |
+| `#[service]` on a parameter | `#[inherit]` |
+| `#[default(...)]` on a parameter | unchanged |
+| `function!(name: value)` short form | kept; forwards to `call!` |
+| `proto` and `proto_macros` crates | `sugary` and `sugary-macros` |
+
+The three features are called named arguments, default arguments and
+inherited arguments. The two functions in a call are the caller and the
+callee.
+
 ## What is here
 
 - `macros/` is the attribute. `src/lib.rs` is the second version, where the
