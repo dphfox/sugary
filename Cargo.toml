@@ -15,6 +15,7 @@ description = "Nicer function parameters for Rust: named, default and inherited 
 readme = "README.md"
 keywords = ["named-arguments", "default-arguments", "macro"]
 categories = ["rust-patterns"]
+exclude = ["tests/"]
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
