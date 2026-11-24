@@ -197,3 +197,31 @@ fn no_inheritance_needed() -> String {
 fn a_bare_default_uses_the_type_s_own() {
 	assert_eq!(no_inheritance_needed(), "3");
 }
+
+#[sugary]
+fn accent(#[inherit] theme: &Theme, #[inherit] scale: Scale) -> u32 {
+	theme.accent * scale.0
+}
+
+#[sugary]
+fn accents(#[inherit] theme: &Theme, #[inherit] scale: Scale) -> [u32; 4] {
+	let other = Theme { accent: 100 };
+	[
+		call!(accent),
+		call!(accent, scale: Scale(5)),
+		call!(accent, theme: &other),
+		accent!(scale: Scale(3), theme: &other),
+	]
+}
+
+// A caller that inherits nothing can still call, by giving everything.
+#[sugary]
+fn from_nothing() -> u32 {
+	call!(accent, theme: &Theme { accent: 4 }, scale: Scale(2))
+}
+
+#[test]
+fn an_inherited_argument_can_be_given_at_the_call() {
+	assert_eq!(accents(&Theme { accent: 7 }, Scale(2)), [14, 35, 200, 300]);
+	assert_eq!(from_nothing(), 8);
+}

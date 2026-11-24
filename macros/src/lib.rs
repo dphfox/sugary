@@ -70,10 +70,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		},
 	);
 
-	let named: Vec<_> = parameters
-		.iter()
-		.filter(|(_, _, kind)| !matches!(kind, Kind::Inherited))
-		.collect();
+	let named: Vec<_> = parameters.iter().collect();
 	let slots: Vec<_> = (0..named.len())
 		.map(|index| format_ident!("__slot{index}"))
 		.collect();
@@ -82,14 +79,16 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		.map(|(ident, _, _)| format_ident!("__sugary_default_{ident}"))
 		.collect();
 
-	// Every named parameter has a slot, which starts out either missing or
-	// holding its default, and is overwritten when the argument is given.
+	// Every parameter has a slot, which starts out missing, holding its
+	// default, or waiting to be inherited, and is overwritten when the
+	// argument is given.
 	let initial_slots = named
 		.iter()
 		.zip(&default_functions)
 		.map(|((_, _, kind), default)| match kind {
 			Kind::Default(_) => quote!(($($function)::+ :: #default())),
-			_ => quote!((@missing)),
+			Kind::Inherited => quote!((@inherit)),
+			Kind::Required => quote!((@missing)),
 		});
 
 	let fill_slot = named.iter().enumerate().map(|(index, (ident, _, _))| {
@@ -134,15 +133,15 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		});
 
 	// The plain call, with arguments back in the order of the signature.
-	// Each inherited parameter is picked out of the caller's by its type.
-	let mut next_slot = slots.iter();
-	let call_arguments = parameters.iter().map(|(_, _, kind)| match kind {
-		Kind::Inherited => quote!(::sugary::__private::Select::select(&$inherited)),
-		_ => {
-			let slot = next_slot.next().unwrap();
-			quote!(::sugary::__sugary_slot!($ #slot))
-		}
-	});
+	// An inherited parameter that was not given is picked out of the
+	// caller's by its type.
+	let call_arguments = parameters
+		.iter()
+		.zip(&slots)
+		.map(|((_, _, kind), slot)| match kind {
+			Kind::Inherited => quote!(::sugary::__sugary_inherited!($ #slot $inherited)),
+			_ => quote!(::sugary::__sugary_slot!($ #slot)),
+		});
 
 	// Defaults live in functions beside the one they belong to, so that the
 	// expression is resolved where it was written and not at the call site.

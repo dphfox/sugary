@@ -29,20 +29,21 @@
 //!
 //! # The three kinds of argument
 //!
-//! - **Named arguments** are written `name: value`, in any order. Every
-//!   parameter that is not inherited is named.
+//! - **Named arguments** are written `name: value`, in any order.
 //! - **Default arguments** may be left out. Mark the parameter
 //!   `#[default(expression)]`, or `#[default]` to use the type's own default.
-//! - **Inherited arguments** are never written at the call site. Mark the
-//!   parameter `#[inherit]`, and its value is taken from the caller's own
-//!   inherited parameters, matched by type.
+//! - **Inherited arguments** may be left out too. Mark the parameter
+//!   `#[inherit]`, and when it is not given its value is taken from the
+//!   caller's own inherited parameters, matched by type. Giving it at the
+//!   call, as `name: value`, overrides what would have been inherited.
 //!
 //! # Rules
 //!
 //! - `call!` only works inside a `#[sugary]` function, because that is where
 //!   inherited arguments come from. At the top of a call chain, call the
 //!   function plainly.
-//! - A caller must itself inherit everything its callees inherit.
+//! - A caller must itself inherit everything its callees inherit, except
+//!   what it gives them at the call.
 //! - Inherited parameters must have distinct types within one function, and
 //!   must be `Copy`, which shared references are.
 //! - `call!(function, ...)` accepts the function however it is in scope:
@@ -79,6 +80,17 @@ macro_rules! __sugary_slot {
 	};
 	(($default:expr)) => {
 		$default
+	};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __sugary_inherited {
+	((@given $value:expr) $inherited:tt) => {
+		$value
+	};
+	((@inherit) $inherited:tt) => {
+		$crate::__private::Select::select(&$inherited)
 	};
 }
 
