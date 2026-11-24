@@ -23,6 +23,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let name = function.sig.ident.clone();
 
 	let mut parameters = Vec::new();
+	let mut inherited = Vec::new();
 	for argument in function.sig.inputs.iter_mut() {
 		let FnArg::Typed(typed) = argument else {
 			return error(&name, "#[sugary] cannot be used on a method");
@@ -34,10 +35,23 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		let ty = (*typed.ty).clone();
 		let mut kinds = Vec::new();
 		let mut bracketed_default = false;
+		// The name callers write, when it differs from the parameter's own.
+		let mut label = None;
+		let mut bad_label = false;
+		let mut read_label = |attribute: &syn::Attribute| {
+			if let Meta::List(_) = &attribute.meta {
+				match attribute.parse_args::<syn::Ident>() {
+					Ok(given) => label = Some(given),
+					Err(_) => bad_label = true,
+				}
+			}
+		};
 		typed.attrs.retain(|attribute| {
 			if attribute.path().is_ident("inherit") {
+				read_label(attribute);
 				kinds.push(Kind::Inherited);
 			} else if attribute.path().is_ident("require") {
+				read_label(attribute);
 				kinds.push(Kind::Required);
 			} else if attribute.path().is_ident("default") {
 				kinds.push(Kind::Default(match &attribute.meta {
@@ -72,17 +86,21 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 				),
 			);
 		};
-		parameters.push((ident, ty, kind));
+		if bad_label {
+			return error(
+				&ident,
+				&format!("the name callers use for `{ident}` must be a single word"),
+			);
+		}
+		if matches!(kind, Kind::Inherited) {
+			inherited.push(ident.clone());
+		}
+		parameters.push((label.unwrap_or(ident), ty, kind));
 	}
 
 	// A macro defined inside a function can see that function's parameters.
 	// This one names the inherited ones, so that a `call!` written in the
 	// body can pass them on. It produces no code of its own.
-	let inherited: Vec<_> = parameters
-		.iter()
-		.filter(|(_, _, kind)| matches!(kind, Kind::Inherited))
-		.map(|(ident, _, _)| ident)
-		.collect();
 	function.block.stmts.insert(
 		0,
 		parse_quote! {

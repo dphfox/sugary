@@ -238,3 +238,29 @@ fn an_inherited_argument_can_be_given_at_the_call() {
 	assert_eq!(accents(&Theme { accent: 7 }, Scale(2)), [14, 35, 200, 300]);
 	assert_eq!(from_nothing(), 8);
 }
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Key(u32);
+
+#[sugary]
+fn leaf(#[inherit(theme)] look: &Theme, #[require(key)] self_key: Key) -> u32 {
+	self_key.0 + look.accent
+}
+
+#[sugary]
+fn branch(#[inherit] theme: &Theme, #[require(key)] self_key: Key) -> [u32; 3] {
+	let other = Theme { accent: 100 };
+	[
+		call!(leaf, key: Key(self_key.0 * 10 + 1)),
+		leaf!(key: Key(self_key.0 * 10 + 2)),
+		call!(leaf, key: self_key, theme: &other),
+	]
+}
+
+// Callers write the name in the brackets; the body uses the parameter's own.
+#[test]
+fn a_parameter_can_be_called_something_else_by_callers() {
+	let theme = Theme { accent: 7 };
+	assert_eq!(branch(&theme, Key(3)), [38, 39, 103]);
+	assert_eq!(leaf(&theme, Key(1)), 8);
+}
