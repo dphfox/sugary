@@ -32,21 +32,46 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		};
 		let ident = pattern.ident.clone();
 		let ty = (*typed.ty).clone();
-		let mut kind = Kind::Required;
+		let mut kinds = Vec::new();
+		let mut bracketed_default = false;
 		typed.attrs.retain(|attribute| {
 			if attribute.path().is_ident("inherit") {
-				kind = Kind::Inherited;
-				false
+				kinds.push(Kind::Inherited);
+			} else if attribute.path().is_ident("require") {
+				kinds.push(Kind::Required);
 			} else if attribute.path().is_ident("default") {
-				kind = Kind::Default(match &attribute.meta {
-					Meta::List(list) => list.tokens.clone(),
-					_ => quote!(::core::default::Default::default()),
-				});
-				false
+				kinds.push(Kind::Default(match &attribute.meta {
+					Meta::NameValue(pair) => {
+						let value = &pair.value;
+						quote!(#value)
+					}
+					Meta::List(_) => {
+						bracketed_default = true;
+						quote!()
+					}
+					Meta::Path(_) => quote!(::core::default::Default::default()),
+				}));
 			} else {
-				true
+				return true;
 			}
+			false
 		});
+		if bracketed_default {
+			return error(
+				&ident,
+				&format!("write the default for `{ident}` as #[default = value]"),
+			);
+		}
+		// The choice is the function's contract with its callers, so it is
+		// always written down: adding a required parameter breaks them.
+		let Some(kind) = kinds.pop().filter(|_| kinds.is_empty()) else {
+			return error(
+				&ident,
+				&format!(
+					"`{ident}` must be marked with exactly one of #[inherit], #[require] or #[default]"
+				),
+			);
+		};
 		parameters.push((ident, ty, kind));
 	}
 

@@ -7,7 +7,11 @@ pub mod buttons {
 	use sugary::sugary;
 
 	#[sugary]
-	pub fn chip(#[inherit] theme: &Theme, text: &str, #[default(2)] weight: u32) -> String {
+	pub fn chip(
+		#[inherit] theme: &Theme,
+		#[require] text: &str,
+		#[default = 2] weight: u32,
+	) -> String {
 		format!("{text}:{}", theme.accent * weight)
 	}
 }
@@ -19,7 +23,7 @@ pub mod badges {
 	// Shares its name with `buttons::chip`, so the two hidden exported
 	// macros must not collide.
 	#[sugary]
-	pub fn chip(#[inherit] theme: &Theme, count: u32) -> String {
+	pub fn chip(#[inherit] theme: &Theme, #[require] count: u32) -> String {
 		format!("badge:{}", theme.accent + count)
 	}
 

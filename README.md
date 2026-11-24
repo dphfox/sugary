@@ -11,12 +11,19 @@ pub struct Theme {
 }
 
 #[sugary]
-fn label(#[inherit] theme: &Theme, text: &str, #[default(1)] size: u32) -> String {
+fn label(
+    #[inherit] theme: &Theme,
+    #[require] text: &str,
+    #[default = 1] size: u32,
+) -> String {
     format!("{text} in colour {} at size {size}", theme.accent)
 }
 
 #[sugary]
-fn heading(#[inherit] theme: &Theme, title: &str) -> String {
+fn heading(
+    #[inherit] theme: &Theme,
+    #[require] title: &str,
+) -> String {
     // Named, in any order. `size` could be left out. `theme` is inherited.
     call!(label, size: 2, text: title)
 }
@@ -26,15 +33,19 @@ A `#[sugary]` function stays an ordinary function. `label(&theme, "Hello", 2)`
 still works, and `call!` expands to exactly that. Nothing is stored anywhere
 at run time.
 
-## The three kinds of argument
+## The three kinds of parameter
 
-- **Named arguments** are written `name: value`, in any order.
-- **Default arguments** may be left out. Mark the parameter
-  `#[default(expression)]`, or `#[default]` to use the type's own default.
-- **Inherited arguments** may be left out too. Mark the parameter
-  `#[inherit]`, and when it is not given its value is taken from the caller's
-  own inherited parameters, matched by type. Giving it at the call, as
-  `name: value`, overrides what would have been inherited.
+Every parameter of a sugary function carries exactly one marker, because the
+choice is the function's contract with its callers. At the call, every
+argument is written `name: value`, in any order.
+
+- `#[require]`: the argument must be given. Adding a required parameter
+  breaks every existing call.
+- `#[default = expression]`, or `#[default]` for the type's own default: the
+  argument may be left out.
+- `#[inherit]`: the argument may be left out, and is then taken from the
+  caller's own inherited parameters, matched by type. Giving it at the call
+  overrides what would have been inherited.
 
 ## Rules
 
@@ -55,6 +66,7 @@ at run time.
 
 Mistakes are caught when compiling:
 
+- A parameter with no marker, or more than one: `` `size` must be marked with exactly one of #[inherit], #[require] or #[default] ``
 - A required argument left out: `` `label` is missing its required argument `text` ``
 - An argument the function does not have: `` `label` has no argument named `colour` ``
 - An argument given twice: `` `label` was given the argument `size` more than once ``
@@ -81,7 +93,7 @@ written with plain calls compile to identical machine code.
 
 ## Limitations
 
-- A default for a borrowed parameter, such as `#[default("none")] text: &str`,
+- A default for a borrowed parameter, such as `#[default = "none"] text: &str`,
   does not compile yet.
 - A default on a parameter whose type is a generic parameter does not work.
 - Each sugary function generates a hidden module of the same name, which

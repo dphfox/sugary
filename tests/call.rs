@@ -13,7 +13,11 @@ mod widgets {
 	const WIDE: u32 = 9;
 
 	#[sugary]
-	pub fn label(#[inherit] theme: &Theme, text: &str, #[default(1)] size: u32) -> String {
+	pub fn label(
+		#[inherit] theme: &Theme,
+		#[require] text: &str,
+		#[default = 1] size: u32,
+	) -> String {
 		format!("{text}:{}", theme.accent * size)
 	}
 
@@ -21,9 +25,9 @@ mod widgets {
 	pub fn button(
 		#[inherit] log: &Log,
 		#[inherit] theme: &Theme,
-		text: &str,
-		#[default(false)] disabled: bool,
-		#[default(WIDE)] width: u32,
+		#[require] text: &str,
+		#[default = false] disabled: bool,
+		#[default = WIDE] width: u32,
 	) -> String {
 		log.0.set(log.0.get() + 1);
 		let caption = call!(label, text: text);
@@ -35,7 +39,12 @@ use widgets::button;
 use widgets::label as heading_text;
 
 #[sugary]
-fn form(#[inherit] log: &Log, #[inherit] theme: &Theme, title: &str, rows: &[&str]) -> Vec<String> {
+fn form(
+	#[inherit] log: &Log,
+	#[inherit] theme: &Theme,
+	#[require] title: &str,
+	#[require] rows: &[&str],
+) -> Vec<String> {
 	let heading = call!(heading_text, size: 2, text: title);
 	let rows = rows.iter().map(|row| call!(button, text: row));
 	let cancel = call!(widgets::button, disabled: true, text: "Cancel", width: 3);
@@ -70,15 +79,15 @@ fn a_sugared_call_is_the_plain_call() {
 fn pick<T: std::fmt::Display>(
 	#[inherit] theme: &Theme,
 	#[inherit] scale: Scale,
-	value: T,
-	choose: impl Fn(u32) -> u32,
-	#[default(|| 0)] extra: impl FnOnce() -> u32,
+	#[require] value: T,
+	#[require] choose: impl Fn(u32) -> u32,
+	#[default = || 0] extra: impl FnOnce() -> u32,
 ) -> String {
 	format!("{value}:{}", choose(theme.accent * scale.0) + extra())
 }
 
 #[sugary]
-fn tree(#[inherit] theme: &Theme, depth: u32) -> u32 {
+fn tree(#[inherit] theme: &Theme, #[require] depth: u32) -> u32 {
 	if depth == 0 {
 		theme.accent
 	} else {
@@ -95,7 +104,7 @@ fn lazy<'a>(#[inherit] theme: &'a Theme) -> impl Iterator<Item = String> + 'a {
 fn screen(
 	#[inherit] theme: &Theme,
 	#[inherit] scale: Scale,
-	input: Option<&str>,
+	#[require] input: Option<&str>,
 ) -> Option<Vec<String>> {
 	let rows = lazy(theme);
 	let mut out = vec![
@@ -162,7 +171,11 @@ mod short {
 	use sugary::sugary;
 
 	#[sugary]
-	pub fn chip(#[inherit] theme: &Theme, text: &str, #[default(1)] weight: u32) -> String {
+	pub fn chip(
+		#[inherit] theme: &Theme,
+		#[require] text: &str,
+		#[default = 1] weight: u32,
+	) -> String {
 		format!("{text}:{}", theme.accent * weight)
 	}
 }
@@ -184,7 +197,7 @@ fn the_short_form_is_the_same_call() {
 }
 
 #[sugary]
-fn nothing_inherited(count: u32, #[default] label: String) -> String {
+fn nothing_inherited(#[require] count: u32, #[default] label: String) -> String {
 	format!("{count}{label}")
 }
 

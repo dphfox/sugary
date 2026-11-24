@@ -12,12 +12,19 @@
 //! }
 //!
 //! #[sugary]
-//! fn label(#[inherit] theme: &Theme, text: &str, #[default(1)] size: u32) -> String {
+//! fn label(
+//!     #[inherit] theme: &Theme,
+//!     #[require] text: &str,
+//!     #[default = 1] size: u32,
+//! ) -> String {
 //!     format!("{text} in colour {} at size {size}", theme.accent)
 //! }
 //!
 //! #[sugary]
-//! fn heading(#[inherit] theme: &Theme, title: &str) -> String {
+//! fn heading(
+//!     #[inherit] theme: &Theme,
+//!     #[require] title: &str,
+//! ) -> String {
 //!     // Named, in any order. `size` could be left out. `theme` is inherited.
 //!     call!(label, size: 2, text: title)
 //! }
@@ -27,15 +34,19 @@
 //! assert_eq!(heading(&theme, "Hello"), label(&theme, "Hello", 2));
 //! ```
 //!
-//! # The three kinds of argument
+//! # The three kinds of parameter
 //!
-//! - **Named arguments** are written `name: value`, in any order.
-//! - **Default arguments** may be left out. Mark the parameter
-//!   `#[default(expression)]`, or `#[default]` to use the type's own default.
-//! - **Inherited arguments** may be left out too. Mark the parameter
-//!   `#[inherit]`, and when it is not given its value is taken from the
+//! Every parameter of a sugary function carries exactly one marker, because
+//! the choice is the function's contract with its callers. At the call,
+//! every argument is written `name: value`, in any order.
+//!
+//! - `#[require]`: the argument must be given. Adding a required parameter
+//!   breaks every existing call.
+//! - `#[default = expression]`, or `#[default]` for the type's own default:
+//!   the argument may be left out.
+//! - `#[inherit]`: the argument may be left out, and is then taken from the
 //!   caller's own inherited parameters, matched by type. Giving it at the
-//!   call, as `name: value`, overrides what would have been inherited.
+//!   call overrides what would have been inherited.
 //!
 //! # Rules
 //!
@@ -181,11 +192,32 @@ pub mod __private {
 
 /// What goes wrong, and that it is caught when compiling.
 ///
+/// A parameter with no marker:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(size: u32) -> u32 { size }
+/// ```
+///
+/// A parameter with two markers:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(#[require] #[default] size: u32) -> u32 { size }
+/// ```
+///
+/// A default written in brackets:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(#[default(1)] size: u32) -> u32 { size }
+/// ```
+///
 /// A required argument left out:
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(text: &str, #[default(1)] size: u32) -> u32 { size }
+/// #[sugary] fn label(#[require] text: &str, #[default = 1] size: u32) -> u32 { size }
 /// #[sugary] fn caller() -> u32 { call!(label, size: 2) }
 /// ```
 ///
@@ -193,7 +225,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(text: &str) -> usize { text.len() }
+/// #[sugary] fn label(#[require] text: &str) -> usize { text.len() }
 /// #[sugary] fn caller() -> usize { call!(label, text: "x", colour: 3) }
 /// ```
 ///
@@ -201,7 +233,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(size: u32) -> u32 { size }
+/// #[sugary] fn label(#[require] size: u32) -> u32 { size }
 /// #[sugary] fn caller() -> u32 { call!(label, size: 2, size: 3) }
 /// ```
 ///
@@ -209,7 +241,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(size: u32) -> u32 { size }
+/// #[sugary] fn label(#[require] size: u32) -> u32 { size }
 /// fn caller() -> u32 { call!(label, size: 2) }
 /// ```
 ///
@@ -238,7 +270,7 @@ pub mod __private {
 /// # use sugary::sugary;
 /// mod widgets {
 ///     # use sugary::sugary;
-///     #[sugary] pub fn chip(size: u32) -> u32 { size }
+///     #[sugary] pub fn chip(#[require] size: u32) -> u32 { size }
 /// }
 /// use widgets::chip as tag;
 /// #[sugary] fn caller() -> u32 { tag!(size: 2) }
