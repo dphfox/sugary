@@ -38,32 +38,44 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		// The name callers write, when it differs from the parameter's own.
 		let mut label = None;
 		let mut bad_label = false;
-		let mut read_label = |attribute: &syn::Attribute| {
-			if let Meta::List(_) = &attribute.meta {
-				match attribute.parse_args::<syn::Ident>() {
-					Ok(given) => label = Some(given),
-					Err(_) => bad_label = true,
-				}
-			}
-		};
+		let own_default = || quote!(::core::default::Default::default());
 		typed.attrs.retain(|attribute| {
-			if attribute.path().is_ident("inherit") {
-				read_label(attribute);
-				kinds.push(Kind::Inherited);
-			} else if attribute.path().is_ident("require") {
-				read_label(attribute);
-				kinds.push(Kind::Required);
+			let bracketed = matches!(attribute.meta, Meta::List(_));
+			if attribute.path().is_ident("inherit") || attribute.path().is_ident("require") {
+				if bracketed {
+					match attribute.parse_args::<syn::Ident>() {
+						Ok(given) => label = Some(given),
+						Err(_) => bad_label = true,
+					}
+				}
+				kinds.push(if attribute.path().is_ident("inherit") {
+					Kind::Inherited
+				} else {
+					Kind::Required
+				});
 			} else if attribute.path().is_ident("default") {
+				// In brackets: the callers' name, alone or with a value.
 				kinds.push(Kind::Default(match &attribute.meta {
 					Meta::NameValue(pair) => {
 						let value = &pair.value;
 						quote!(#value)
 					}
+					Meta::Path(_) => own_default(),
 					Meta::List(_) => {
-						bracketed_default = true;
-						quote!()
+						if let Ok(given) = attribute.parse_args::<syn::Ident>() {
+							label = Some(given);
+							own_default()
+						} else if let Ok(pair) = attribute.parse_args::<syn::MetaNameValue>()
+							&& let Some(given) = pair.path.get_ident()
+						{
+							label = Some(given.clone());
+							let value = &pair.value;
+							quote!(#value)
+						} else {
+							bracketed_default = true;
+							quote!()
+						}
 					}
-					Meta::Path(_) => quote!(::core::default::Default::default()),
 				}));
 			} else {
 				return true;
@@ -73,7 +85,9 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		if bracketed_default {
 			return error(
 				&ident,
-				&format!("write the default for `{ident}` as #[default = value]"),
+				&format!(
+					"write the default for `{ident}` as #[default = value], or as #[default(name = value)] to name it for callers"
+				),
 			);
 		}
 		// The choice is the function's contract with its callers, so it is

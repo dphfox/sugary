@@ -47,9 +47,10 @@ argument is written `name: value`, in any order.
   caller's own inherited parameters, matched by type. Giving it at the call
   overrides what would have been inherited.
 
-A required or inherited parameter can be given a different name for callers
-to write, in brackets: `#[require(key)] self_key: Key` is called as
-`key: ...`, and is `self_key` inside the function.
+A parameter can be given a different name for callers to write, in brackets:
+`#[require(key)] self_key: Key` is called as `key: ...`, and is `self_key`
+inside the function. The same works for `#[inherit(name)]`, for
+`#[default(name)]`, and with a value as `#[default(name = value)]`.
 
 ## Rules
 

@@ -264,3 +264,27 @@ fn a_parameter_can_be_called_something_else_by_callers() {
 	assert_eq!(branch(&theme, Key(3)), [38, 39, 103]);
 	assert_eq!(leaf(&theme, Key(1)), 8);
 }
+
+#[sugary]
+fn padded(
+	#[require(key)] self_key: Key,
+	#[default(gap)] spacing: u32,
+	#[default(scale = 2)] factor: u32,
+) -> u32 {
+	(self_key.0 + spacing) * factor
+}
+
+#[sugary]
+fn paddings() -> [u32; 3] {
+	[
+		padded!(key: Key(1)),
+		padded!(key: Key(1), gap: 4),
+		padded!(scale: 10, key: Key(1), gap: 4),
+	]
+}
+
+#[test]
+fn a_default_can_be_named_for_callers_too() {
+	assert_eq!(paddings(), [2, 10, 50]);
+	assert_eq!(padded(Key(1), 0, 1), 1);
+}
