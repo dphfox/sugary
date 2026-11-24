@@ -41,19 +41,19 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		let own_default = || quote!(::core::default::Default::default());
 		typed.attrs.retain(|attribute| {
 			let bracketed = matches!(attribute.meta, Meta::List(_));
-			if attribute.path().is_ident("inherit") || attribute.path().is_ident("require") {
+			if attribute.path().is_ident("inherits") || attribute.path().is_ident("required") {
 				if bracketed {
 					match attribute.parse_args::<syn::Ident>() {
 						Ok(given) => label = Some(given),
 						Err(_) => bad_label = true,
 					}
 				}
-				kinds.push(if attribute.path().is_ident("inherit") {
+				kinds.push(if attribute.path().is_ident("inherits") {
 					Kind::Inherited
 				} else {
 					Kind::Required
 				});
-			} else if attribute.path().is_ident("default") {
+			} else if attribute.path().is_ident("optional") {
 				// In brackets: the callers' name, alone or with a value.
 				kinds.push(Kind::Default(match &attribute.meta {
 					Meta::NameValue(pair) => {
@@ -86,7 +86,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 			return error(
 				&ident,
 				&format!(
-					"write the default for `{ident}` as #[default = value], or as #[default(name = value)] to name it for callers"
+					"write the default for `{ident}` as #[optional = value], or as #[optional(name = value)] to name it for callers"
 				),
 			);
 		}
@@ -96,7 +96,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 			return error(
 				&ident,
 				&format!(
-					"`{ident}` must be marked with exactly one of #[inherit], #[require] or #[default]"
+					"`{ident}` must be marked with exactly one of #[inherits], #[required] or #[optional]"
 				),
 			);
 		};

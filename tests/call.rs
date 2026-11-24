@@ -14,20 +14,20 @@ mod widgets {
 
 	#[sugary]
 	pub fn label(
-		#[inherit] theme: &Theme,
-		#[require] text: &str,
-		#[default = 1] size: u32,
+		#[inherits] theme: &Theme,
+		#[required] text: &str,
+		#[optional = 1] size: u32,
 	) -> String {
 		format!("{text}:{}", theme.accent * size)
 	}
 
 	#[sugary]
 	pub fn button(
-		#[inherit] log: &Log,
-		#[inherit] theme: &Theme,
-		#[require] text: &str,
-		#[default = false] disabled: bool,
-		#[default = WIDE] width: u32,
+		#[inherits] log: &Log,
+		#[inherits] theme: &Theme,
+		#[required] text: &str,
+		#[optional = false] disabled: bool,
+		#[optional = WIDE] width: u32,
 	) -> String {
 		log.0.set(log.0.get() + 1);
 		let caption = call!(label, text: text);
@@ -40,10 +40,10 @@ use widgets::label as heading_text;
 
 #[sugary]
 fn form(
-	#[inherit] log: &Log,
-	#[inherit] theme: &Theme,
-	#[require] title: &str,
-	#[require] rows: &[&str],
+	#[inherits] log: &Log,
+	#[inherits] theme: &Theme,
+	#[required] title: &str,
+	#[required] rows: &[&str],
 ) -> Vec<String> {
 	let heading = call!(heading_text, size: 2, text: title);
 	let rows = rows.iter().map(|row| call!(button, text: row));
@@ -77,17 +77,17 @@ fn a_sugared_call_is_the_plain_call() {
 
 #[sugary]
 fn pick<T: std::fmt::Display>(
-	#[inherit] theme: &Theme,
-	#[inherit] scale: Scale,
-	#[require] value: T,
-	#[require] choose: impl Fn(u32) -> u32,
-	#[default = || 0] extra: impl FnOnce() -> u32,
+	#[inherits] theme: &Theme,
+	#[inherits] scale: Scale,
+	#[required] value: T,
+	#[required] choose: impl Fn(u32) -> u32,
+	#[optional = || 0] extra: impl FnOnce() -> u32,
 ) -> String {
 	format!("{value}:{}", choose(theme.accent * scale.0) + extra())
 }
 
 #[sugary]
-fn tree(#[inherit] theme: &Theme, #[require] depth: u32) -> u32 {
+fn tree(#[inherits] theme: &Theme, #[required] depth: u32) -> u32 {
 	if depth == 0 {
 		theme.accent
 	} else {
@@ -96,15 +96,15 @@ fn tree(#[inherit] theme: &Theme, #[require] depth: u32) -> u32 {
 }
 
 #[sugary]
-fn lazy<'a>(#[inherit] theme: &'a Theme) -> impl Iterator<Item = String> + 'a {
+fn lazy<'a>(#[inherits] theme: &'a Theme) -> impl Iterator<Item = String> + 'a {
 	(1..=3u32).map(move |size| call!(heading_text, text: "row", size: size))
 }
 
 #[sugary]
 fn screen(
-	#[inherit] theme: &Theme,
-	#[inherit] scale: Scale,
-	#[require] input: Option<&str>,
+	#[inherits] theme: &Theme,
+	#[inherits] scale: Scale,
+	#[required] input: Option<&str>,
 ) -> Option<Vec<String>> {
 	let rows = lazy(theme);
 	let mut out = vec![
@@ -146,7 +146,7 @@ fn a_lazy_iterator_consumed_later_keeps_its_inherited_arguments() {
 use sugary_test_kit::badges::chip as badge;
 
 #[sugary]
-fn toolbar(#[inherit] theme: &Theme) -> Vec<String> {
+fn toolbar(#[inherits] theme: &Theme) -> Vec<String> {
 	vec![
 		call!(sugary_test_kit::buttons::chip, text: "Save"),
 		call!(sugary_test_kit::buttons::chip, weight: 3, text: "Open"),
@@ -172,9 +172,9 @@ mod short {
 
 	#[sugary]
 	pub fn chip(
-		#[inherit] theme: &Theme,
-		#[require] text: &str,
-		#[default = 1] weight: u32,
+		#[inherits] theme: &Theme,
+		#[required] text: &str,
+		#[optional = 1] weight: u32,
 	) -> String {
 		format!("{text}:{}", theme.accent * weight)
 	}
@@ -183,7 +183,7 @@ mod short {
 use short::chip;
 
 #[sugary]
-fn bar(#[inherit] theme: &Theme) -> Vec<String> {
+fn bar(#[inherits] theme: &Theme) -> Vec<String> {
 	vec![
 		chip!(text: "a"),
 		chip!(weight: 3, text: "b"),
@@ -197,7 +197,7 @@ fn the_short_form_is_the_same_call() {
 }
 
 #[sugary]
-fn nothing_inherited(#[require] count: u32, #[default] label: String) -> String {
+fn nothing_inherited(#[required] count: u32, #[optional] label: String) -> String {
 	format!("{count}{label}")
 }
 
@@ -212,12 +212,12 @@ fn a_bare_default_uses_the_type_s_own() {
 }
 
 #[sugary]
-fn accent(#[inherit] theme: &Theme, #[inherit] scale: Scale) -> u32 {
+fn accent(#[inherits] theme: &Theme, #[inherits] scale: Scale) -> u32 {
 	theme.accent * scale.0
 }
 
 #[sugary]
-fn accents(#[inherit] theme: &Theme, #[inherit] scale: Scale) -> [u32; 4] {
+fn accents(#[inherits] theme: &Theme, #[inherits] scale: Scale) -> [u32; 4] {
 	let other = Theme { accent: 100 };
 	[
 		call!(accent),
@@ -243,12 +243,12 @@ fn an_inherited_argument_can_be_given_at_the_call() {
 pub struct Key(u32);
 
 #[sugary]
-fn leaf(#[inherit(theme)] look: &Theme, #[require(key)] self_key: Key) -> u32 {
+fn leaf(#[inherits(theme)] look: &Theme, #[required(key)] self_key: Key) -> u32 {
 	self_key.0 + look.accent
 }
 
 #[sugary]
-fn branch(#[inherit] theme: &Theme, #[require(key)] self_key: Key) -> [u32; 3] {
+fn branch(#[inherits] theme: &Theme, #[required(key)] self_key: Key) -> [u32; 3] {
 	let other = Theme { accent: 100 };
 	[
 		call!(leaf, key: Key(self_key.0 * 10 + 1)),
@@ -267,9 +267,9 @@ fn a_parameter_can_be_called_something_else_by_callers() {
 
 #[sugary]
 fn padded(
-	#[require(key)] self_key: Key,
-	#[default(gap)] spacing: u32,
-	#[default(scale = 2)] factor: u32,
+	#[required(key)] self_key: Key,
+	#[optional(gap)] spacing: u32,
+	#[optional(scale = 2)] factor: u32,
 ) -> u32 {
 	(self_key.0 + spacing) * factor
 }
