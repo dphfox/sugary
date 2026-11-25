@@ -12,12 +12,19 @@
 //! }
 //!
 //! #[sugary]
-//! fn label(#[inherit] theme: &Theme, text: &str, #[default(1)] size: u32) -> String {
+//! fn label(
+//!     #[inherits] theme: &Theme,
+//!     #[required] text: &str,
+//!     #[optional = 1] size: u32,
+//! ) -> String {
 //!     format!("{text} in colour {} at size {size}", theme.accent)
 //! }
 //!
 //! #[sugary]
-//! fn heading(#[inherit] theme: &Theme, title: &str) -> String {
+//! fn heading(
+//!     #[inherits] theme: &Theme,
+//!     #[required] title: &str,
+//! ) -> String {
 //!     // Named, in any order. `size` could be left out. `theme` is inherited.
 //!     call!(label, size: 2, text: title)
 //! }
@@ -27,22 +34,32 @@
 //! assert_eq!(heading(&theme, "Hello"), label(&theme, "Hello", 2));
 //! ```
 //!
-//! # The three kinds of argument
+//! # The three kinds of parameter
 //!
-//! - **Named arguments** are written `name: value`, in any order. Every
-//!   parameter that is not inherited is named.
-//! - **Default arguments** may be left out. Mark the parameter
-//!   `#[default(expression)]`, or `#[default]` to use the type's own default.
-//! - **Inherited arguments** are never written at the call site. Mark the
-//!   parameter `#[inherit]`, and its value is taken from the caller's own
-//!   inherited parameters, matched by type.
+//! Every parameter of a sugary function carries exactly one marker, because
+//! the choice is the function's contract with its callers. At the call,
+//! every argument is written `name: value`, in any order.
+//!
+//! - `#[required]`: the argument must be given. Adding a required parameter
+//!   breaks every existing call.
+//! - `#[optional = expression]`, or `#[optional]` for the type's own default:
+//!   the argument may be left out.
+//! - `#[inherits]`: the argument may be left out, and is then taken from the
+//!   caller's own inherited parameters, matched by type. Giving it at the
+//!   call overrides what would have been inherited.
+//!
+//! A parameter can be given a different name for callers to write, in
+//! brackets: `#[required(key)] self_key: Key` is called as `key: ...`, and is
+//! `self_key` inside the function. The same works for `#[inherits(name)]`,
+//! for `#[optional(name)]`, and with a value as `#[optional(name = value)]`.
 //!
 //! # Rules
 //!
 //! - `call!` only works inside a `#[sugary]` function, because that is where
 //!   inherited arguments come from. At the top of a call chain, call the
 //!   function plainly.
-//! - A caller must itself inherit everything its callees inherit.
+//! - A caller must itself inherit everything its callees inherit, except
+//!   what it gives them at the call.
 //! - Inherited parameters must have distinct types within one function, and
 //!   must be `Copy`, which shared references are.
 //! - `call!(function, ...)` accepts the function however it is in scope:
@@ -83,12 +100,23 @@ macro_rules! __sugary_slot {
 }
 
 #[doc(hidden)]
+#[macro_export]
+macro_rules! __sugary_inherited {
+	((@given $value:expr) $inherited:tt) => {
+		$value
+	};
+	((@inherit) $inherited:tt) => {
+		$crate::__private::Select::select(&$inherited)
+	};
+}
+
+#[doc(hidden)]
 pub mod __private {
 	/// Picks the inherited argument of type `T` out of the caller's.
 	#[diagnostic::on_unimplemented(
 		message = "the calling function has no inherited `{T}` to pass on",
 		label = "this call needs an inherited `{T}`",
-		note = "add an `#[inherit]` parameter of type `{T}` to the function this call is inside"
+		note = "add an `#[inherits]` parameter of type `{T}` to the function this call is inside"
 	)]
 	pub trait Select<T, Index> {
 		fn select(&self) -> T;
@@ -99,7 +127,7 @@ pub mod __private {
 	#[diagnostic::on_unimplemented(
 		message = "the calling function has no inherited `{Self}` to pass on",
 		label = "this call needs an inherited `{Self}`",
-		note = "add an `#[inherit]` parameter of type `{Self}` to the function this call is inside"
+		note = "add an `#[inherits]` parameter of type `{Self}` to the function this call is inside"
 	)]
 	pub trait Inherited {}
 
@@ -169,11 +197,32 @@ pub mod __private {
 
 /// What goes wrong, and that it is caught when compiling.
 ///
+/// A parameter with no marker:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(size: u32) -> u32 { size }
+/// ```
+///
+/// A parameter with two markers:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(#[required] #[optional] size: u32) -> u32 { size }
+/// ```
+///
+/// A default written in brackets:
+///
+/// ```compile_fail
+/// # use sugary::sugary;
+/// #[sugary] fn label(#[optional(1)] size: u32) -> u32 { size }
+/// ```
+///
 /// A required argument left out:
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(text: &str, #[default(1)] size: u32) -> u32 { size }
+/// #[sugary] fn label(#[required] text: &str, #[optional = 1] size: u32) -> u32 { size }
 /// #[sugary] fn caller() -> u32 { call!(label, size: 2) }
 /// ```
 ///
@@ -181,7 +230,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(text: &str) -> usize { text.len() }
+/// #[sugary] fn label(#[required] text: &str) -> usize { text.len() }
 /// #[sugary] fn caller() -> usize { call!(label, text: "x", colour: 3) }
 /// ```
 ///
@@ -189,7 +238,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(size: u32) -> u32 { size }
+/// #[sugary] fn label(#[required] size: u32) -> u32 { size }
 /// #[sugary] fn caller() -> u32 { call!(label, size: 2, size: 3) }
 /// ```
 ///
@@ -197,7 +246,7 @@ pub mod __private {
 ///
 /// ```compile_fail
 /// # use sugary::{call, sugary};
-/// #[sugary] fn label(size: u32) -> u32 { size }
+/// #[sugary] fn label(#[required] size: u32) -> u32 { size }
 /// fn caller() -> u32 { call!(label, size: 2) }
 /// ```
 ///
@@ -207,8 +256,8 @@ pub mod __private {
 /// # use sugary::{call, sugary};
 /// struct Theme;
 /// struct Clock;
-/// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
-/// #[sugary] fn caller(#[inherit] theme: &Theme) -> u32 { let _ = theme; call!(timed) }
+/// #[sugary] fn timed(#[inherits] clock: &Clock) -> u32 { let _ = clock; 0 }
+/// #[sugary] fn caller(#[inherits] theme: &Theme) -> u32 { let _ = theme; call!(timed) }
 /// ```
 ///
 /// An inherited argument, when the caller inherits nothing at all:
@@ -216,7 +265,7 @@ pub mod __private {
 /// ```compile_fail
 /// # use sugary::{call, sugary};
 /// struct Clock;
-/// #[sugary] fn timed(#[inherit] clock: &Clock) -> u32 { let _ = clock; 0 }
+/// #[sugary] fn timed(#[inherits] clock: &Clock) -> u32 { let _ = clock; 0 }
 /// #[sugary] fn caller() -> u32 { call!(timed) }
 /// ```
 ///
@@ -226,7 +275,7 @@ pub mod __private {
 /// # use sugary::sugary;
 /// mod widgets {
 ///     # use sugary::sugary;
-///     #[sugary] pub fn chip(size: u32) -> u32 { size }
+///     #[sugary] pub fn chip(#[required] size: u32) -> u32 { size }
 /// }
 /// use widgets::chip as tag;
 /// #[sugary] fn caller() -> u32 { tag!(size: 2) }

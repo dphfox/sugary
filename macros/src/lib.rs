@@ -23,6 +23,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	let name = function.sig.ident.clone();
 
 	let mut parameters = Vec::new();
+	let mut inherited = Vec::new();
 	for argument in function.sig.inputs.iter_mut() {
 		let FnArg::Typed(typed) = argument else {
 			return error(&name, "#[sugary] cannot be used on a method");
@@ -32,32 +33,88 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		};
 		let ident = pattern.ident.clone();
 		let ty = (*typed.ty).clone();
-		let mut kind = Kind::Required;
+		let mut kinds = Vec::new();
+		let mut bracketed_default = false;
+		// The name callers write, when it differs from the parameter's own.
+		let mut label = None;
+		let mut bad_label = false;
+		let own_default = || quote!(::core::default::Default::default());
 		typed.attrs.retain(|attribute| {
-			if attribute.path().is_ident("inherit") {
-				kind = Kind::Inherited;
-				false
-			} else if attribute.path().is_ident("default") {
-				kind = Kind::Default(match &attribute.meta {
-					Meta::List(list) => list.tokens.clone(),
-					_ => quote!(::core::default::Default::default()),
+			let bracketed = matches!(attribute.meta, Meta::List(_));
+			if attribute.path().is_ident("inherits") || attribute.path().is_ident("required") {
+				if bracketed {
+					match attribute.parse_args::<syn::Ident>() {
+						Ok(given) => label = Some(given),
+						Err(_) => bad_label = true,
+					}
+				}
+				kinds.push(if attribute.path().is_ident("inherits") {
+					Kind::Inherited
+				} else {
+					Kind::Required
 				});
-				false
+			} else if attribute.path().is_ident("optional") {
+				// In brackets: the callers' name, alone or with a value.
+				kinds.push(Kind::Default(match &attribute.meta {
+					Meta::NameValue(pair) => {
+						let value = &pair.value;
+						quote!(#value)
+					}
+					Meta::Path(_) => own_default(),
+					Meta::List(_) => {
+						if let Ok(given) = attribute.parse_args::<syn::Ident>() {
+							label = Some(given);
+							own_default()
+						} else if let Ok(pair) = attribute.parse_args::<syn::MetaNameValue>()
+							&& let Some(given) = pair.path.get_ident()
+						{
+							label = Some(given.clone());
+							let value = &pair.value;
+							quote!(#value)
+						} else {
+							bracketed_default = true;
+							quote!()
+						}
+					}
+				}));
 			} else {
-				true
+				return true;
 			}
+			false
 		});
-		parameters.push((ident, ty, kind));
+		if bracketed_default {
+			return error(
+				&ident,
+				&format!(
+					"write the default for `{ident}` as #[optional = value], or as #[optional(name = value)] to name it for callers"
+				),
+			);
+		}
+		// The choice is the function's contract with its callers, so it is
+		// always written down: adding a required parameter breaks them.
+		let Some(kind) = kinds.pop().filter(|_| kinds.is_empty()) else {
+			return error(
+				&ident,
+				&format!(
+					"`{ident}` must be marked with exactly one of #[inherits], #[required] or #[optional]"
+				),
+			);
+		};
+		if bad_label {
+			return error(
+				&ident,
+				&format!("the name callers use for `{ident}` must be a single word"),
+			);
+		}
+		if matches!(kind, Kind::Inherited) {
+			inherited.push(ident.clone());
+		}
+		parameters.push((label.unwrap_or(ident), ty, kind));
 	}
 
 	// A macro defined inside a function can see that function's parameters.
 	// This one names the inherited ones, so that a `call!` written in the
 	// body can pass them on. It produces no code of its own.
-	let inherited: Vec<_> = parameters
-		.iter()
-		.filter(|(_, _, kind)| matches!(kind, Kind::Inherited))
-		.map(|(ident, _, _)| ident)
-		.collect();
 	function.block.stmts.insert(
 		0,
 		parse_quote! {
@@ -70,10 +127,7 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		},
 	);
 
-	let named: Vec<_> = parameters
-		.iter()
-		.filter(|(_, _, kind)| !matches!(kind, Kind::Inherited))
-		.collect();
+	let named: Vec<_> = parameters.iter().collect();
 	let slots: Vec<_> = (0..named.len())
 		.map(|index| format_ident!("__slot{index}"))
 		.collect();
@@ -82,14 +136,16 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		.map(|(ident, _, _)| format_ident!("__sugary_default_{ident}"))
 		.collect();
 
-	// Every named parameter has a slot, which starts out either missing or
-	// holding its default, and is overwritten when the argument is given.
+	// Every parameter has a slot, which starts out missing, holding its
+	// default, or waiting to be inherited, and is overwritten when the
+	// argument is given.
 	let initial_slots = named
 		.iter()
 		.zip(&default_functions)
 		.map(|((_, _, kind), default)| match kind {
 			Kind::Default(_) => quote!(($($function)::+ :: #default())),
-			_ => quote!((@missing)),
+			Kind::Inherited => quote!((@inherit)),
+			Kind::Required => quote!((@missing)),
 		});
 
 	let fill_slot = named.iter().enumerate().map(|(index, (ident, _, _))| {
@@ -134,15 +190,15 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 		});
 
 	// The plain call, with arguments back in the order of the signature.
-	// Each inherited parameter is picked out of the caller's by its type.
-	let mut next_slot = slots.iter();
-	let call_arguments = parameters.iter().map(|(_, _, kind)| match kind {
-		Kind::Inherited => quote!(::sugary::__private::Select::select(&$inherited)),
-		_ => {
-			let slot = next_slot.next().unwrap();
-			quote!(::sugary::__sugary_slot!($ #slot))
-		}
-	});
+	// An inherited parameter that was not given is picked out of the
+	// caller's by its type.
+	let call_arguments = parameters
+		.iter()
+		.zip(&slots)
+		.map(|((_, _, kind), slot)| match kind {
+			Kind::Inherited => quote!(::sugary::__sugary_inherited!($ #slot $inherited)),
+			_ => quote!(::sugary::__sugary_slot!($ #slot)),
+		});
 
 	// Defaults live in functions beside the one they belong to, so that the
 	// expression is resolved where it was written and not at the call site.
