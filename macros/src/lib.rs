@@ -233,7 +233,10 @@ pub fn sugary(_attr: TokenStream, item: TokenStream) -> TokenStream {
 	};
 	let unknown = format!("`{name}` has no argument named `");
 
+	// The lint is about call sites burdened with arguments. A sugary call
+	// writes only what it names, and never what is inherited or defaulted.
 	quote! {
+		#[allow(clippy::too_many_arguments)]
 		#function
 
 		#[doc(hidden)]
