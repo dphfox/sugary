@@ -66,6 +66,9 @@
 //!   under its own name, renamed, or by path.
 //! - `function!(...)` is a shorter form of `call!(function, ...)`. It only
 //!   works when the function is in scope under its own name.
+//! - A marked function is allowed Clippy's `too_many_arguments` lint. The
+//!   lint is about call sites burdened with arguments, and a sugary call
+//!   writes only what it names.
 //!
 //! # How it works
 //!

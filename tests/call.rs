@@ -288,3 +288,28 @@ fn a_default_can_be_named_for_callers_too() {
 	assert_eq!(paddings(), [2, 10, 50]);
 	assert_eq!(padded(Key(1), 0, 1), 1);
 }
+
+// Eight parameters would trip clippy's too_many_arguments, which sugary allows.
+#[sugary]
+fn many(
+	#[inherits] theme: &Theme,
+	#[inherits] scale: Scale,
+	#[required] a: u32,
+	#[required] b: u32,
+	#[optional] c: u32,
+	#[optional] d: u32,
+	#[optional] e: u32,
+	#[optional] f: u32,
+) -> u32 {
+	theme.accent * scale.0 + a + b + c + d + e + f
+}
+
+#[sugary]
+fn calls_many(#[inherits] theme: &Theme, #[inherits] scale: Scale) -> u32 {
+	call!(many, a: 1, b: 2, f: 3)
+}
+
+#[test]
+fn a_function_with_many_parameters_needs_no_lint_exemption() {
+	assert_eq!(calls_many(&Theme { accent: 7 }, Scale(2)), 20);
+}
